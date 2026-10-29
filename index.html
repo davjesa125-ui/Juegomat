@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Recorrido por la cancha de Independiente · El Colorado</title>
+<style>
+:root{--rojo:#d62828;--cal:#f5f5ef;--pasto:#1f5e2e;--noche:#0e1a12}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--noche);color:var(--cal);font-family:"Arial Black","Trebuchet MS",Arial,sans-serif}
+#c{position:fixed;inset:0;width:100%;height:100%}
+#v{position:fixed;width:2px;height:2px;opacity:0;pointer-events:none}
+.oculto{display:none!important}
+#hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-around;padding:1.2vh 2vw;font-size:clamp(20px,3.4vw,48px);background:linear-gradient(#000b,#0000);text-shadow:0 2px 6px #000}
+#aviso{position:fixed;left:0;right:0;top:36%;text-align:center;font-size:clamp(34px,7vw,110px);text-shadow:0 4px 12px #000;pointer-events:none}
+.panel{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:2.5vw;background:#050c07dd;overflow:auto}
+.card{width:min(1100px,100%);background:var(--pasto);border:.7vw solid var(--cal);outline:.5vw solid var(--rojo);outline-offset:.4vw;border-radius:1.2vw;padding:2.5vw 3vw;font-family:Arial,sans-serif;font-size:clamp(20px,2.6vw,38px);line-height:1.3}
+h1{font-family:"Arial Black",Arial,sans-serif;font-size:clamp(30px,5vw,72px);margin:0 0 1.5vh;line-height:1.05}
+h2{font-family:"Arial Black",Arial,sans-serif;font-size:clamp(28px,4.2vw,60px);margin:0 0 1.5vh;color:var(--cal)}
+h3{margin:2vh 0 1vh}
+p{margin:.8vh 0}
+small{display:block;margin-top:1.5vh;opacity:.8;font-size:.62em}
+.falta{background:#ffd54a;color:#2b2200;padding:.1em .4em;border-radius:.4em;font-size:.8em}
+.ops{display:grid;grid-template-columns:1fr 1fr;gap:2vw}
+.ops div{background:var(--noche);border:.3vw solid var(--cal);border-radius:1vw;padding:1.5vh 1.5vw;text-align:center}
+.ops div.ok{background:#2e7d32}.ops div.mal{background:#8e1b1b}
+button{font:inherit;font-family:"Arial Black",Arial,sans-serif;font-size:1em;margin:1vh 1vw 0 0;padding:1.2vh 2vw;background:var(--rojo);color:var(--cal);border:.3vw solid var(--cal);border-radius:1vw;cursor:pointer}
+button.sec{background:transparent}
+button:focus-visible{outline:.4vw solid #ffd54a}
+ul{margin:.5vh 0 0;padding-left:1.2em}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<video id="v" playsinline muted></video>
+<div id="hud" class="oculto"><span id="hP"></span><span id="hL"></span><span id="hT"></span><span id="hM"></span></div>
+<div id="aviso"></div>
+
+<div class="panel" id="menu"><div class="card">
+<h1>Recorrido por la cancha de Independiente</h1>
+<p>Realidad mixta de cuerpo entero · El Colorado, Formosa</p>
+<ul>
+<li><b>Caminá en el lugar</b>: avanzás. <b>Quedate quieto</b>: frenás.</li>
+<li><b>Un paso al costado</b>: cambiás de carril y esquivás conos.</li>
+<li><b>Mano arriba</b>: juntás monedas y respondés (izquierda = A, derecha = B).</li>
+</ul>
+<p>Pasate adelante de la cámara con unos 2 metros libres y la luz de frente.</p>
+<small>Privacidad: la imagen de la cámara se procesa en esta computadora. No se guarda ni se envía a internet. Nadie juega si no quiere. Variante sentada: teclado (↑ camina, ← → carriles, Z = A, X = B, espacio = juntar).</small>
+<button id="bCam">Jugar con cámara</button><button id="bKey" class="sec">Jugar con teclado</button>
+<div id="estado"></div>
+</div></div>
+
+<div class="panel oculto" id="fp"><div class="card" id="ficha"></div></div>
+<div class="panel oculto" id="fin"><div class="card" id="finc"></div></div>
+
+<script>
+/* ============ CONFIGURACIÓN: completá acá los contenidos ============ */
+const CFG = {
+  club: "Club Atlético Independiente",
+  pueblo: "El Colorado, Formosa",
+  peso: 60, // kg, solo para la estimación de calorías
+  colorAcento: "#d62828", // supuesto: cambialo por el color real del club
+  // Cada lugar: si falta dato/curiosidad/pregunta, la ficha muestra "Falta completar".
+  // Los lugares son una propuesta: cambiá nombres y orden según el recorrido real.
+  lugares: [
+    { nombre: "Entrada del club", dato: "", curiosidad: "", pregunta: "", opciones: [], ok: 0, fuente: "" },
+    { nombre: "Placa recordatoria",
+      dato: "El 23 de octubre de 2026 se inauguraron las nuevas instalaciones del club, con corte de cintas y descubrimiento de una placa.",
+      curiosidad: "", pregunta: "¿En qué año se inauguraron las nuevas instalaciones?", opciones: ["2026", "2016"], ok: 0,
+      fuente: "Red Deportiva Regional, 24/10/2026" },
+    { nombre: "La cancha",
+      dato: "Al inaugurarse las instalaciones se abrió la 5.ª edición del Torneo de la Amistad, de fútbol femenino, con sedes en El Colorado, Pirané y Villa Dos Trece.",
+      curiosidad: "", pregunta: "¿Qué torneo se abrió el día de la inauguración?", opciones: ["Torneo de la Amistad", "Copa Libertadores"], ok: 0,
+      fuente: "Red Deportiva Regional, 24/10/2026" },
+    { nombre: "La tribuna", dato: "", curiosidad: "", pregunta: "", opciones: [], ok: 0, fuente: "" },
+    { nombre: "Los vestuarios", dato: "", curiosidad: "", pregunta: "", opciones: [], ok: 0, fuente: "" }
+  ]
+};
+
+/* ============ CARGA DE BIBLIOTECAS (carpeta lib/ y, si no está, internet) ============ */
+const CDN_THREE = "https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js";
+const CDN_POSE = "https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/";
+const $ = id => document.getElementById(id);
+function cargar(lista) {
+  return (async () => {
+    for (const s of lista) {
+      try {
+        await new Promise((ok, no) => { const e = document.createElement("script"); e.src = s; e.onload = ok; e.onerror = no; document.head.appendChild(e); });
+        return s;
+      } catch (_) {}
+    }
+    throw new Error("No se pudo cargar " + lista[0]);
+  })();
+}
+
+/* ============ ESTADO ============ */
+const N = CFG.lugares.length, SP = 70, TOTAL = N * SP, SPEED = 5, LANE = 2.2;
+const S = { estado: "menu", pos: 0, score: 0, steps: 0, mov: 0, k: 0, lane: 0, fichaT: 0, resp: null, fbT: 0, hit: 0, calT: 0 };
+let P = null, base = null, calMx = [], lastSign = 0, lastStep = 0, usaCam = false, hL = 0, hR = 0;
+const keys = {};
+addEventListener("keydown", e => {
+  const k = e.key.toLowerCase(); keys[k] = true;
+  if (!usaCam && k === "arrowleft") S.lane = Math.max(-1, S.lane - 1);
+  if (!usaCam && k === "arrowright") S.lane = Math.min(1, S.lane + 1);
+});
+addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
+
+/* ============ CÁMARA Y POSE ============ */
+const maskC = document.createElement("canvas"); maskC.width = 480; maskC.height = 360;
+const mctx = maskC.getContext("2d");
+function onRes(r) {
+  mctx.clearRect(0, 0, 480, 360);
+  if (r.segmentationMask) {
+    mctx.globalCompositeOperation = "source-over";
+    mctx.drawImage(r.segmentationMask, 0, 0, 480, 360);
+    mctx.globalCompositeOperation = "source-in";
+    mctx.drawImage(r.image, 0, 0, 480, 360);
+    mctx.globalCompositeOperation = "source-over";
+  }
+  if (tex) tex.needsUpdate = true;
+  const L = r.poseLandmarks;
+  if (!L) { P = null; hL = hR = 0; return; }
+  P = { mx: 1 - (L[23].x + L[24].x) / 2, lk: L[25].y, rk: L[26].y };
+  const up = (w, s) => L[w].visibility > 0.4 && L[w].y < L[s].y - 0.04;
+  hL = up(15, 11) ? hL + 1 : 0;
+  hR = up(16, 12) ? hR + 1 : 0;
+}
+async function iniciarCamara() {
+  const v = $("v");
+  v.srcObject = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: "user" }, audio: false });
+  await v.play();
+  const usado = await cargar(["lib/pose/pose.js", CDN_POSE + "pose.js"]);
+  const dir = usado.startsWith("lib/") ? "lib/pose/" : CDN_POSE;
+  const pose = new Pose({ locateFile: f => dir + f });
+  pose.setOptions({ modelComplexity: 0, smoothLandmarks: true, enableSegmentation: true, smoothSegmentation: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+  pose.onResults(onRes);
+  await pose.initialize();
+  (async function bucle() { if (v.readyState >= 2) await pose.send({ image: v }); requestAnimationFrame(bucle); })();
+  usaCam = true;
+}
+
+/* ============ MUNDO 3D ============ */
+let renderer, scene, cam, tex, items = [];
+function cartel(texto, w, h, fs) {
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  const x = c.getContext("2d");
+  x.fillStyle = CFG.colorAcento; x.fillRect(0, 0, w, h);
+  x.strokeStyle = "#f5f5ef"; x.lineWidth = 8; x.strokeRect(8, 8, w - 16, h - 16);
+  x.fillStyle = "#f5f5ef"; x.font = "bold " + fs + "px Arial"; x.textAlign = "center"; x.textBaseline = "middle";
+  x.fillText(texto, w / 2, h / 2);
+  return new THREE.CanvasTexture(c);
+}
+function initThree() {
+  renderer = new THREE.WebGLRenderer({ canvas: $("c"), antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x9fd3f2);
+  scene.fog = new THREE.Fog(0x9fd3f2, 30, 120);
+  cam = new THREE.PerspectiveCamera(60, 1, 0.1, 200);
+  cam.position.set(0, 2.4, 0);
+  scene.add(cam);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x557755, 1));
+  const sol = new THREE.DirectionalLight(0xffffff, 0.8); sol.position.set(5, 10, 3); scene.add(sol);
+  const mat = (c) => new THREE.MeshLambertMaterial({ color: c });
+  const suelo = new THREE.Mesh(new THREE.PlaneGeometry(300, TOTAL + 220), mat(0x4f9a4f));
+  suelo.rotation.x = -Math.PI / 2; suelo.position.z = -TOTAL / 2 - 20; scene.add(suelo);
+  const calle = new THREE.Mesh(new THREE.PlaneGeometry(7.2, TOTAL + 220), mat(0x44474d));
+  calle.rotation.x = -Math.PI / 2; calle.position.set(0, 0.02, -TOTAL / 2 - 20); scene.add(calle);
+  for (const x of [-1.1, 1.1]) {
+    const l = new THREE.Mesh(new THREE.PlaneGeometry(0.1, TOTAL + 220), new THREE.MeshBasicMaterial({ color: 0xf5f5ef }));
+    l.rotation.x = -Math.PI / 2; l.position.set(x, 0.03, -TOTAL / 2 - 20); scene.add(l);
+  }
+  const paleta = [0xe8d5b5, 0xc9b79c, 0xb5c9a8, 0xd9a5a0, 0xa8bfd9, 0xf0e0a0];
+  for (let z = 6; z < TOTAL + 120; z += 13) for (const lado of [-1, 1]) {
+    const w = 4 + Math.random() * 3, h = 3 + Math.random() * 6;
+    const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, 8 + Math.random() * 3), mat(paleta[Math.floor(Math.random() * paleta.length)]));
+    b.position.set(lado * (6 + w / 2 + Math.random() * 2), h / 2, -z); scene.add(b);
+  }
+  CFG.lugares.forEach((l, k) => {
+    const z = -((k + 1) * SP + 9);
+    for (const x of [-3.6, 3.6]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.3, 6, 0.3), mat(0xf5f5ef)); p.position.set(x, 3, z); scene.add(p); }
+    const b = new THREE.Mesh(new THREE.PlaneGeometry(7.6, 1.8), new THREE.MeshBasicMaterial({ map: cartel(l.nombre, 760, 180, 78), fog: false }));
+    b.position.set(0, 5.2, z); scene.add(b);
+  });
+  const gc = new THREE.SphereGeometry(0.35, 12, 8), gk = new THREE.ConeGeometry(0.5, 1, 12);
+  const mc = new THREE.MeshLambertMaterial({ color: 0xffc400 }), mk = new THREE.MeshLambertMaterial({ color: 0xff6d00 });
+  for (let d = 15; d < TOTAL - 5; d += 9) {
+    if (CFG.lugares.some((_, k) => d > (k + 1) * SP - 14 && d < (k + 1) * SP + 12)) continue;
+    const lane = Math.floor(Math.random() * 3) - 1, coin = Math.random() < 0.65;
+    const m = new THREE.Mesh(coin ? gc : gk, coin ? mc : mk);
+    m.position.set(lane * LANE, coin ? 1.4 : 0.5, -d); scene.add(m);
+    items.push({ m, d, lane, coin, done: false });
+  }
+  const plano = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 3.3),
+    new THREE.MeshBasicMaterial({ map: (tex = new THREE.CanvasTexture(maskC)), transparent: true, side: THREE.DoubleSide, depthTest: false, fog: false }));
+  plano.scale.x = -1; plano.position.set(0, -0.6, -4); plano.renderOrder = 10; cam.add(plano);
+  const rs = () => { renderer.setSize(innerWidth, innerHeight, false); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); };
+  addEventListener("resize", rs); rs();
+}
+
+/* ============ FICHAS ============ */
+function mostrarFicha(k) {
+  const f = CFG.lugares[k], falta = t => '<span class="falta">Falta completar: ' + t + "</span>";
+  $("ficha").innerHTML = "<h2>" + f.nombre + "</h2><p>" + (f.dato || falta("dato histórico")) + "</p><p>" +
+    (f.curiosidad ? "Curiosidad: " + f.curiosidad : falta("curiosidad")) + "</p>" +
+    (f.pregunta
+      ? "<h3>" + f.pregunta + '</h3><div class="ops"><div id="oA">Mano izquierda (A)<br><b>' + f.opciones[0] + '</b></div><div id="oB">Mano derecha (B)<br><b>' + f.opciones[1] + "</b></div></div>"
+      : "<h3>Levantá una mano para seguir</h3>") +
+    "<small>Fuente: " + (f.fuente || "pendiente") + "</small>";
+  $("fp").classList.remove("oculto");
+  S.estado = "ficha"; S.fichaT = 0; S.resp = null;
+}
+function responder(op) {
+  const f = CFG.lugares[S.k];
+  S.resp = op;
+  if (f.pregunta) {
+    const bien = op === f.ok;
+    if (bien) S.score += 50;
+    $(op === 0 ? "oA" : "oB").classList.add(bien ? "ok" : "mal");
+    if (!bien) $(f.ok === 0 ? "oA" : "oB").classList.add("ok");
+  }
+  S.fbT = 1.8;
+}
+
+/* ============ JUEGO ============ */
+function empezar() {
+  $("hud").classList.remove("oculto");
+  S.estado = usaCam ? "calib" : "play";
+  if (!usaCam) {
+    mctx.font = "300px serif"; mctx.textAlign = "center"; mctx.fillText("🚶", 240, 300); tex.needsUpdate = true;
+  }
+}
+function fin() {
+  S.estado = "fin"; $("fp").classList.add("oculto"); $("hud").classList.add("oculto");
+  const h = S.mov / 3600, kcal = (3.5 * CFG.peso * h).toFixed(1);
+  const mm = Math.floor(S.mov / 60), ss = Math.round(S.mov % 60);
+  $("finc").innerHTML = "<h1>¡Terminaste el recorrido!</h1><p>Puntaje: <b>" + S.score + "</b></p><p>Pasos: <b>" + S.steps +
+    "</b></p><p>Tiempo en movimiento: <b>" + mm + " min " + ss + " s</b></p><p>Calorías: <b>≈ " + kcal +
+    " kcal</b></p><small>Es una estimación (3,5 × peso × horas, con " + CFG.peso + " kg), no una medición.</small>" +
+    '<button onclick="location.reload()">Jugar de nuevo</button>';
+  $("fin").classList.remove("oculto");
+}
+let t0 = performance.now();
+function frame(t) {
+  requestAnimationFrame(frame);
+  const dt = Math.min((t - t0) / 1000, 0.1); t0 = t;
+  const av = $("aviso"); av.textContent = "";
+  if (S.estado === "calib") {
+    if (P) { S.calT += dt; calMx.push(P.mx); av.textContent = "Quedate quieto… " + Math.max(1, Math.ceil(3 - S.calT)); }
+    else av.textContent = "No te veo. Pasate al centro";
+    if (S.calT >= 3) { base = calMx.reduce((a, b) => a + b, 0) / calMx.length; S.estado = "play"; }
+  }
+  if (usaCam && P && S.estado !== "calib") {
+    const d = P.lk - P.rk, sg = Math.sign(d);
+    if (Math.abs(d) > 0.035 && sg !== lastSign) { lastSign = sg; lastStep = t; if (S.estado === "play") S.steps++; }
+    if (base !== null) { const dx = P.mx - base; S.lane = dx > 0.09 ? 1 : dx < -0.09 ? -1 : 0; }
+  }
+  const camina = keys["arrowup"] || keys["w"] || (usaCam && t - lastStep < 600);
+  const mano = hL > 0 || hR > 0 || keys[" "];
+  if (S.estado === "play") {
+    if (S.hit > 0) { S.hit -= dt; av.textContent = "¡Cuidado!"; }
+    else if (camina) { S.pos += SPEED * dt; S.mov += dt; }
+    for (const it of items) {
+      if (it.done) continue;
+      const dd = it.d - S.pos;
+      if (dd < -2) { it.done = true; it.m.visible = false; continue; }
+      if (it.lane !== S.lane || Math.abs(dd) > 1.4) continue;
+      if (it.coin && mano) { S.score += 10; it.done = true; it.m.visible = false; }
+      else if (!it.coin && Math.abs(dd) < 0.7) { S.score = Math.max(0, S.score - 5); S.hit = 0.6; it.done = true; it.m.visible = false; }
+    }
+    const meta = (S.k + 1) * SP;
+    if (S.pos >= meta) { S.pos = meta; mostrarFicha(S.k); }
+  } else if (S.estado === "ficha") {
+    S.fichaT += dt;
+    if (S.resp === null && S.fichaT > 2.5) {
+      const f = CFG.lugares[S.k];
+      if (f.pregunta) { if (hL >= 6 || keys["z"]) responder(0); else if (hR >= 6 || keys["x"]) responder(1); }
+      else if (hL >= 6 || hR >= 6 || keys[" "]) responder(0);
+    } else if (S.resp !== null) {
+      S.fbT -= dt;
+      if (S.fbT <= 0) { $("fp").classList.add("oculto"); S.k++; if (S.k >= N) fin(); else S.estado = "play"; }
+    }
+  }
+  cam.position.z = -S.pos;
+  cam.position.x += (S.lane * LANE - cam.position.x) * Math.min(1, dt * 8);
+  cam.position.y = 2.4 + (S.estado === "play" && camina ? Math.sin(S.mov * 9) * 0.05 : 0);
+  $("hP").textContent = "Puntos " + S.score; $("hL").textContent = "Lugar " + Math.min(S.k + 1, N) + "/" + N;
+  $("hT").textContent = "Pasos " + S.steps; $("hM").textContent = Math.round(S.mov) + " s";
+  renderer.render(scene, cam);
+}
+
+/* ============ ARRANQUE ============ */
+async function iniciar(conCam) {
+  $("bCam").disabled = $("bKey").disabled = true;
+  $("estado").textContent = "Cargando…";
+  try {
+    await cargar(["lib/three.min.js", CDN_THREE]);
+    initThree();
+    if (conCam) {
+      try { await iniciarCamara(); }
+      catch (e) { $("estado").textContent = "No se pudo usar la cámara (" + e.message + "). Se juega con teclado."; await new Promise(r => setTimeout(r, 2500)); }
+    }
+    $("menu").classList.add("oculto"); empezar(); requestAnimationFrame(frame);
+  } catch (e) {
+    $("estado").innerHTML = "<p>Error: " + e.message + ". Abrí el juego con un servidor local y revisá la carpeta lib/. Copiá este error a la IA para que lo corrija.</p>";
+    $("bCam").disabled = $("bKey").disabled = false;
+  }
+}
+$("bCam").onclick = () => iniciar(true);
+$("bKey").onclick = () => iniciar(false);
+</script>
+</body>
+</html>
